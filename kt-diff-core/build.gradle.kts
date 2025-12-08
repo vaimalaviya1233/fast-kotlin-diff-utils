@@ -20,13 +20,18 @@ kotlin {
     }
 
     sourceSets {
-        val commonMain by getting
+        val commonMain by getting {
+            dependencies {
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+            }
+        }
         val commonTest by getting
         val jvmMain by getting
         val jvmTest by getting {
             dependencies {
                 implementation(kotlin("test"))
                 implementation("org.junit.jupiter:junit-jupiter-api:5.11.4")
+                implementation("org.junit.jupiter:junit-jupiter-params:5.11.4")
                 runtimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.4")
                 runtimeOnly("org.junit.platform:junit-platform-launcher:1.11.0")
                 implementation("org.assertj:assertj-core:3.27.3")

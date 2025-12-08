@@ -8,18 +8,31 @@ import com.bernaferrari.difflib.platform.PlatformSerializable
 class Chunk<T>(
     val position: Int,
     lines: List<T>,
-    changePosition: List<Int>? = null
+    changePosition: List<Int>? = null,
+    private val copyLines: Boolean = true
 ) : PlatformSerializable {
 
-    var lines: List<T> = lines.toList()
+    var lines: List<T> = prepareLines(lines)
         set(value) {
-            field = value.toList()
+            field = prepareLines(value)
         }
 
     val changePosition: List<Int>? = changePosition?.toList()
 
-    constructor(position: Int, lines: Array<T>, changePosition: List<Int>? = null) :
-        this(position, lines.toList(), changePosition)
+    private fun prepareLines(value: List<T>): List<T> =
+        when {
+            copyLines -> value.toList()
+            // Avoid sharing mutable backing storage that could be mutated elsewhere.
+            value is MutableList<*> -> value.toList()
+            else -> value
+        }
+
+    constructor(
+        position: Int,
+        lines: Array<T>,
+        changePosition: List<Int>? = null,
+        copyLines: Boolean = true
+    ) : this(position, lines.toList(), changePosition, copyLines)
 
     fun verifyChunk(target: List<T>): VerifyChunk = verifyChunk(target, 0, position)
 

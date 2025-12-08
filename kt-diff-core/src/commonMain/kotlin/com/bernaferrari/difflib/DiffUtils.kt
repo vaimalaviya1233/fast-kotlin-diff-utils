@@ -5,6 +5,7 @@ import com.bernaferrari.difflib.algorithm.DiffAlgorithmI
 import com.bernaferrari.difflib.algorithm.DiffAlgorithmListener
 import com.bernaferrari.difflib.algorithm.Equalizer
 import com.bernaferrari.difflib.algorithm.myers.MyersDiff
+import com.bernaferrari.difflib.algorithm.myers.MyersDiff.ParallelConfig
 import com.bernaferrari.difflib.patch.AbstractDelta
 import com.bernaferrari.difflib.patch.Patch
 import com.bernaferrari.difflib.patch.PatchFailedException
@@ -14,7 +15,15 @@ import com.bernaferrari.difflib.patch.PatchFailedException
  */
 object DiffUtils {
     @JvmStatic
-    var DEFAULT_DIFF: DiffAlgorithmFactory = MyersDiff.factory()
+    var DEFAULT_PARALLEL_CONFIG: ParallelConfig = ParallelConfig()
+
+    @JvmStatic
+    var DEFAULT_DIFF: DiffAlgorithmFactory = defaultMyersFactory()
+
+    @JvmStatic
+    fun withDefaultParallelConfig(config: ParallelConfig) {
+        DEFAULT_PARALLEL_CONFIG = config
+    }
 
     @JvmStatic
     fun withDefaultDiffAlgorithmFactory(factory: DiffAlgorithmFactory) {
@@ -46,7 +55,7 @@ object DiffUtils {
         if (equalizer != null) {
             diff(source, target, DEFAULT_DIFF.create(equalizer))
         } else {
-            diff(source, target, MyersDiff())
+            diff(source, target, DEFAULT_DIFF.create())
         }
 
     @JvmStatic
@@ -64,8 +73,24 @@ object DiffUtils {
         algorithm: DiffAlgorithmI<T>,
         progress: DiffAlgorithmListener?,
         includeEqualParts: Boolean
+    ): Patch<T> = diff(original, revised, algorithm, progress, includeEqualParts, copyChunks = true)
+
+    @JvmStatic
+    fun <T> diff(
+        original: List<T>,
+        revised: List<T>,
+        algorithm: DiffAlgorithmI<T>,
+        progress: DiffAlgorithmListener?,
+        includeEqualParts: Boolean,
+        copyChunks: Boolean
     ): Patch<T> =
-        Patch.generate(original, revised, algorithm.computeDiff(original, revised, progress), includeEqualParts)
+        Patch.generate(
+            original,
+            revised,
+            algorithm.computeDiff(original, revised, progress),
+            includeEqualParts,
+            copyChunks
+        )
 
     @JvmStatic
     fun <T> diff(
@@ -73,6 +98,14 @@ object DiffUtils {
         revised: List<T>,
         algorithm: DiffAlgorithmI<T>
     ): Patch<T> = diff(original, revised, algorithm, null)
+
+    @JvmStatic
+    fun <T> diff(
+        original: List<T>,
+        revised: List<T>,
+        includeEqualParts: Boolean,
+        copyChunks: Boolean
+    ): Patch<T> = diff(original, revised, DEFAULT_DIFF.create(), null, includeEqualParts, copyChunks)
 
     @JvmStatic
     fun diffInline(original: String, revised: String): Patch<String> {
@@ -99,4 +132,11 @@ object DiffUtils {
         } else {
             listOf(lines.joinToString(delimiter))
         }
+
+    private fun defaultMyersFactory(): DiffAlgorithmFactory = object : DiffAlgorithmFactory {
+        override fun <T> create(): DiffAlgorithmI<T> = MyersDiff(parallelConfig = DEFAULT_PARALLEL_CONFIG)
+
+        override fun <T> create(equalizer: Equalizer<T>): DiffAlgorithmI<T> =
+            MyersDiff(equalizer, DEFAULT_PARALLEL_CONFIG)
+    }
 }

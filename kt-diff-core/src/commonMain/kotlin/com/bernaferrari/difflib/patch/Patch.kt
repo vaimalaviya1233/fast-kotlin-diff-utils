@@ -196,10 +196,10 @@ class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimated
 
         @JvmStatic
         fun <T> generate(original: List<T>, revised: List<T>, changes: List<Change>): Patch<T> =
-            generate(original, revised, changes, false)
+            generate(original, revised, changes, includeEquals = false)
 
-        private fun <T> buildChunk(start: Int, end: Int, data: List<T>): Chunk<T> =
-            Chunk(start, data.subList(start, end).toList())
+        private fun <T> buildChunk(start: Int, end: Int, data: List<T>, copyChunks: Boolean): Chunk<T> =
+            Chunk(start, data.subList(start, end), null, copyChunks)
 
         @JvmStatic
         fun <T> generate(
@@ -207,7 +207,18 @@ class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimated
             revised: List<T>,
             changesInput: List<Change>,
             includeEquals: Boolean
+        ): Patch<T> = generate(original, revised, changesInput, includeEquals, copyChunks = true)
+
+        @JvmStatic
+        fun <T> generate(
+            original: List<T>,
+            revised: List<T>,
+            changesInput: List<Change>,
+            includeEquals: Boolean,
+            copyChunks: Boolean
         ): Patch<T> {
+            // copyChunks=false is an expert/benchmark-only path. We still clone mutable lists to
+            // avoid aliasing/corruption; zero-copy only happens if input lists are already immutable.
             val patch = Patch<T>(changesInput.size)
             var startOriginal = 0
             var startRevised = 0
@@ -223,14 +234,14 @@ class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimated
                 if (includeEquals && startOriginal < change.startOriginal) {
                     patch.addDelta(
                         EqualDelta(
-                            buildChunk(startOriginal, change.startOriginal, original),
-                            buildChunk(startRevised, change.startRevised, revised)
+                            buildChunk(startOriginal, change.startOriginal, original, copyChunks),
+                            buildChunk(startRevised, change.startRevised, revised, copyChunks)
                         )
                     )
                 }
 
-                val orgChunk = buildChunk(change.startOriginal, change.endOriginal, original)
-                val revChunk = buildChunk(change.startRevised, change.endRevised, revised)
+                val orgChunk = buildChunk(change.startOriginal, change.endOriginal, original, copyChunks)
+                val revChunk = buildChunk(change.startRevised, change.endRevised, revised, copyChunks)
                 when (change.deltaType) {
                     DeltaType.DELETE -> patch.addDelta(DeleteDelta(orgChunk, revChunk))
                     DeltaType.INSERT -> patch.addDelta(InsertDelta(orgChunk, revChunk))
@@ -249,8 +260,8 @@ class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimated
             if (includeEquals && startOriginal < original.size) {
                 patch.addDelta(
                     EqualDelta(
-                        buildChunk(startOriginal, original.size, original),
-                        buildChunk(startRevised, revised.size, revised)
+                        buildChunk(startOriginal, original.size, original, copyChunks),
+                        buildChunk(startRevised, revised.size, revised, copyChunks)
                     )
                 )
             }

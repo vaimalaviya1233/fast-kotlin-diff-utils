@@ -4,6 +4,7 @@ import com.bernaferrari.difflib.DiffUtils
 import com.bernaferrari.difflib.algorithm.DiffAlgorithmFactory
 import com.bernaferrari.difflib.algorithm.myers.MyersDiff
 import com.bernaferrari.difflib.algorithm.myers.MyersDiffWithLinearSpace
+import com.bernaferrari.difflib.algorithm.patience.PatienceDiff
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
@@ -17,7 +18,8 @@ class PatchWithAllDiffAlgorithmsTest {
         @JvmStatic
         fun provideAlgorithms() = java.util.stream.Stream.of(
             Arguments.of(MyersDiff.factory()),
-            Arguments.of(MyersDiffWithLinearSpace.factory())
+            Arguments.of(MyersDiffWithLinearSpace.factory()),
+            Arguments.of(PatienceDiff.factory())
         )
 
         @JvmStatic

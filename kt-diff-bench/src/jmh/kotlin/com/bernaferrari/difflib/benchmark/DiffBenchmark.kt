@@ -1,6 +1,8 @@
 package com.bernaferrari.difflib.benchmark
 
 import com.bernaferrari.difflib.DiffUtils
+import com.bernaferrari.difflib.algorithm.myers.MyersDiff.ParallelConfig
+import com.bernaferrari.difflib.algorithm.patience.PatienceDiff
 import com.bernaferrari.difflib.patch.Patch
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
@@ -27,6 +29,9 @@ import org.openjdk.jmh.infra.Blackhole
 @BenchmarkMode(Mode.AverageTime)
 open class DiffBenchmark {
 
+    @Param("myers", "patience")
+    lateinit var algorithm: String
+
     @Param("500", "2000")
     var lineCount: Int = 500
 
@@ -36,9 +41,17 @@ open class DiffBenchmark {
     @Param("0.0", "0.45")
     var stableEdgeRatio: Double = 0.0
 
+    @Param("off", "on")
+    lateinit var parallelMode: String
+
+    @Param("copy", "zero")
+    lateinit var chunkCopyMode: String
+
     private lateinit var original: List<String>
     private lateinit var revised: List<String>
     private lateinit var preparedPatch: Patch<String>
+    private var runParallelSegments: Boolean = false
+    private var copyChunks: Boolean = true
 
     @Setup(Level.Trial)
     fun generateSamples() {
@@ -84,17 +97,27 @@ open class DiffBenchmark {
 
     @Setup(Level.Iteration)
     fun preparePatch() {
-        preparedPatch = DiffUtils.diff(original, revised)
+        runParallelSegments = parallelMode == "on"
+        copyChunks = chunkCopyMode == "copy"
+
+        DiffUtils.withDefaultParallelConfig(
+            ParallelConfig(
+                enableParallelSegments = runParallelSegments,
+                minSegmentCost = 1,
+                minTotalCost = 1
+            )
+        )
+        preparedPatch = computePatch(includeEquals = false)
     }
 
     @Benchmark
     fun diffDefault(blackhole: Blackhole) {
-        blackhole.consume(DiffUtils.diff(original, revised))
+        blackhole.consume(computePatch(includeEquals = false))
     }
 
     @Benchmark
     fun diffWithEquals(blackhole: Blackhole) {
-        blackhole.consume(DiffUtils.diff(original, revised, includeEqualParts = true))
+        blackhole.consume(computePatch(includeEquals = true))
     }
 
     @Benchmark
@@ -109,5 +132,20 @@ open class DiffBenchmark {
             counter += preparedPatch.deltas.size
         }
         blackhole.consume(counter)
+    }
+
+    private fun computePatch(includeEquals: Boolean): Patch<String> {
+        val diffAlgo = when (algorithm) {
+            "patience" -> PatienceDiff.factory().create<String>()
+            else -> DiffUtils.DEFAULT_DIFF.create<String>()
+        }
+        return DiffUtils.diff(
+            original,
+            revised,
+            diffAlgo,
+            null,
+            includeEquals,
+            copyChunks
+        )
     }
 }
