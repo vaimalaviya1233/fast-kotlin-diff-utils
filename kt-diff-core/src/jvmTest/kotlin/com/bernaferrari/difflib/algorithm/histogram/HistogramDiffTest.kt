@@ -8,34 +8,58 @@ class HistogramDiffTest {
 
     @Test
     fun testSimpleDiff() {
-        val source = listOf("a", "b", "c")
-        val target = listOf("a", "c", "d")
-        // Unique: a, b (only in source), c (in both), d (only in target).
-        // Common unique: a, c.
-        // LIS of a, c: a, c.
-        // Anchors: a, c.
-        // Split:
-        // 1. Before 'a': empty vs empty -> empty.
-        // 2. Between 'a' and 'c': 'b' vs empty -> delete 'b'.
-        // 3. After 'c': empty vs 'd' -> insert 'd'.
-        // Expected: Keep a, Delete b, Keep c, Insert d.
-
+        // Create a large input to bypass the optimization threshold (< 256)
+        // and force the true Histogram logic (anchor splitting) to run.
+        val prefix = (0 until 150).map { "prefix_$it" }
+        val suffix = (0 until 150).map { "suffix_$it" }
+        
+        val source = prefix + listOf("b") + suffix
+        val target = prefix + suffix + listOf("d")
+        
+        // Anchors: all prefix and suffix lines are unique and match.
+        // The algorithm should split around them.
+        // It should isolate "b" (delete) and "d" (insert).
+        
         val diff = HistogramDiff<String>().computeDiff(source, target, null)
         
-        // Convert to simplified string representation for checking
-        val result = diff.joinToString(", ") { "${it.deltaType} [${it.startOriginal}, ${it.endOriginal}) -> [${it.startRevised}, ${it.endRevised})" }
-        println(result)
+        // We expect specific behavior from Histogram:
+        // It should match all prefix/suffix.
+        // It should identify 'b' as extra in source (DELETE)
+        // It should identify 'd' as extra in target (INSERT)
+        // Myers might also do this, but Histogram guarantees it by splitting.
         
-        // Expected changes:
-        // DELETE 1, 2 (b) -> 1, 1 (at position 1 in revised)
-        // INSERT 2, 2 (at position 2 in original) -> 2, 3 (d)
+        // Filter out any "equal" parts if they were returned (computeDiff shouldn't return equals)
+        val changes = diff.filter { it.deltaType != DeltaType.EQUAL }
         
-        assertEquals(2, diff.size)
-        assertEquals(DeltaType.DELETE, diff[0].deltaType)
-        assertEquals("b", source[diff[0].startOriginal])
+        // Expect: Delete "b" (index 150), Insert "d" (index 300 in target)
+        assertEquals(2, changes.size)
         
-        assertEquals(DeltaType.INSERT, diff[1].deltaType)
-        assertEquals("d", target[diff[1].startRevised])
+        val delete = changes.find { it.deltaType == DeltaType.DELETE }
+        val insert = changes.find { it.deltaType == DeltaType.INSERT }
+        
+        org.junit.jupiter.api.Assertions.assertNotNull(delete)
+        org.junit.jupiter.api.Assertions.assertNotNull(insert)
+        
+        assertEquals(150, delete!!.startOriginal)
+        assertEquals("b", source[delete.startOriginal])
+        
+        assertEquals(300, insert!!.startRevised)
+        assertEquals("d", target[insert.startRevised])
+    }
+
+    @Test
+    fun testSmallInputFallback() {
+        // Small input (< 256) triggers the Myers fallback.
+        // We just want to ensure it produces a valid diff (apply to source == target).
+        val source = listOf("a", "b", "c")
+        val target = listOf("a", "c", "d")
+        
+        val diff = HistogramDiff<String>().computeDiff(source, target, null)
+        
+        // We don't enforce strict "DELETE/INSERT" shape here because Myers might produce "CHANGE".
+        // We only check that the diff is valid.
+        val applied = com.bernaferrari.difflib.patch.Patch.generate(source, target, diff).applyTo(source)
+        assertEquals(target, applied)
     }
 
     @Test
