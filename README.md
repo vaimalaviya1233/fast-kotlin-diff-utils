@@ -12,7 +12,7 @@ Lightweight Kotlin diff utilities optimized for Android and Kotlin Multiplatform
   - Optimized parallelization with configurable thresholds
   - Cached delta ordering eliminates repeated sorts
 - **Modular**: pick the pieces you need.
-  - `kt-diff-core`: Myers diff, patch apply/restore, diff-row generation – 100% Kotlin.
+  - `kt-diff-core`: Myers and Histogram diffs, patch apply/restore, diff-row generation – 100% Kotlin.
   - `kt-diff-jvm-io`: optional unified diff parser/writer plus legacy Java serialization helpers.
   - `kt-diff-jgit`: histogram diff adapter backed by Eclipse JGit.
 - **Benchmarked**: run `./gradlew :kt-diff-bench:jmh` to reproduce the numbers below (see `kt-diff-bench/src/jmh/...` for workloads).
