@@ -1,11 +1,10 @@
-package com.bernaferrari.difflib.algorithm.patience
+package com.bernaferrari.difflib.algorithm.histogram
 
-import com.bernaferrari.difflib.algorithm.DiffAlgorithmListener
 import com.bernaferrari.difflib.patch.DeltaType
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 
-class PatienceDiffTest {
+class HistogramDiffTest {
 
     @Test
     fun testSimpleDiff() {
@@ -21,7 +20,7 @@ class PatienceDiffTest {
         // 3. After 'c': empty vs 'd' -> insert 'd'.
         // Expected: Keep a, Delete b, Keep c, Insert d.
 
-        val diff = PatienceDiff<String>().computeDiff(source, target, null)
+        val diff = HistogramDiff<String>().computeDiff(source, target, null)
         
         // Convert to simplified string representation for checking
         val result = diff.joinToString(", ") { "${it.deltaType} [${it.startOriginal}, ${it.endOriginal}) -> [${it.startRevised}, ${it.endRevised})" }
@@ -41,7 +40,7 @@ class PatienceDiffTest {
 
     @Test
     fun testPatienceScenario() {
-        // A scenario where Patience might behave nicely.
+        // A scenario where Histogram (Patience) might behave nicely.
         // Source: A B C A
         // Target: A C B A
         // Unique common: C, B? No, A appears twice. B appears once. C appears once.
@@ -75,7 +74,7 @@ class PatienceDiffTest {
         
         val source = listOf("A", "B", "C", "A")
         val target = listOf("A", "C", "B", "A")
-        val diff = PatienceDiff<String>().computeDiff(source, target, null)
+        val diff = HistogramDiff<String>().computeDiff(source, target, null)
         
         // It should find a diff.
         assertEquals(true, diff.isNotEmpty())

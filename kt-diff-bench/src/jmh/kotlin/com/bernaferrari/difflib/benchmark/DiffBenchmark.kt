@@ -1,8 +1,8 @@
 package com.bernaferrari.difflib.benchmark
 
 import com.bernaferrari.difflib.DiffUtils
+import com.bernaferrari.difflib.algorithm.histogram.HistogramDiff
 import com.bernaferrari.difflib.algorithm.myers.MyersDiff.ParallelConfig
-import com.bernaferrari.difflib.algorithm.patience.PatienceDiff
 import com.bernaferrari.difflib.patch.Patch
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
@@ -29,7 +29,7 @@ import org.openjdk.jmh.infra.Blackhole
 @BenchmarkMode(Mode.AverageTime)
 open class DiffBenchmark {
 
-    @Param("myers", "patience")
+    @Param("myers", "histogram")
     lateinit var algorithm: String
 
     @Param("500", "2000")
@@ -136,7 +136,7 @@ open class DiffBenchmark {
 
     private fun computePatch(includeEquals: Boolean): Patch<String> {
         val diffAlgo = when (algorithm) {
-            "patience" -> PatienceDiff.factory().create<String>()
+            "histogram" -> HistogramDiff.factory().create<String>()
             else -> DiffUtils.DEFAULT_DIFF.create<String>()
         }
         return DiffUtils.diff(

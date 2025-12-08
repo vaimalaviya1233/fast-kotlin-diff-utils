@@ -1,4 +1,4 @@
-package com.bernaferrari.difflib.algorithm.patience
+package com.bernaferrari.difflib.algorithm.histogram
 
 import com.bernaferrari.difflib.algorithm.Change
 import com.bernaferrari.difflib.algorithm.DiffAlgorithmFactory
@@ -8,7 +8,7 @@ import com.bernaferrari.difflib.algorithm.Equalizer
 import com.bernaferrari.difflib.algorithm.myers.MyersDiff
 import com.bernaferrari.difflib.patch.DeltaType
 
-class PatienceDiff<T>(
+class HistogramDiff<T>(
     private val equalizer: Equalizer<T> = defaultEqualizer()
 ) : DiffAlgorithmI<T> {
 
@@ -246,8 +246,8 @@ class PatienceDiff<T>(
         private val DEFAULT_EQUALIZER: Equalizer<Any?> = { a, b -> a == b }
 
         fun factory(): DiffAlgorithmFactory = object : DiffAlgorithmFactory {
-            override fun <T> create(): DiffAlgorithmI<T> = PatienceDiff()
-            override fun <T> create(equalizer: Equalizer<T>): DiffAlgorithmI<T> = PatienceDiff(equalizer)
+            override fun <T> create(): DiffAlgorithmI<T> = HistogramDiff()
+            override fun <T> create(equalizer: Equalizer<T>): DiffAlgorithmI<T> = HistogramDiff(equalizer)
         }
 
         private fun <T> defaultEqualizer(): Equalizer<T> = DEFAULT_EQUALIZER
