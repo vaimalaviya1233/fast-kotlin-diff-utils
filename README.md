@@ -47,8 +47,8 @@ The new `HistogramDiff` algorithm (a.k.a. Patience Diff) offers competitive perf
 
 | Algorithm | Time (2,000 lines, 10% edits) | Notes |
 | --- | --- | --- |
-| Myers | **0.27 ms/op** | Optimized for minimal edit scripts |
-| Histogram | **~0.38 ms/op** | Comparable speed; prioritizes unique common lines |
+| Myers | **0.28 ms/op** | Optimized for minimal edit scripts |
+| Histogram | **~0.30 ms/op** | Comparable speed; prioritizes unique common lines |
 
 ### vs java-diff-utils
 
