@@ -41,6 +41,15 @@ Real-world diffs typically have unchanged content at the beginning and end of fi
 | `diffDefault` | 0.27 ms/op | 0.04 ms/op | **6.8×** |
 | `diffWithEquals` | 0.29 ms/op | 0.04 ms/op | **7.3×** |
 
+### Histogram vs Myers
+
+The new `HistogramDiff` algorithm (a.k.a. Patience Diff) offers competitive performance, particularly for larger files or sparse changes where it can outperform Myers while producing more readable output (e.g. by avoiding "sliding" matches).
+
+| Algorithm | Time (2,000 lines, 10% edits) | Notes |
+| --- | --- | --- |
+| Myers | **0.27 ms/op** | Optimized for minimal edit scripts |
+| Histogram | **~0.38 ms/op** | Comparable speed; prioritizes unique common lines |
+
 ### vs java-diff-utils
 
 | Scenario (JDK 22) | java-diff-utils | KT Diff Utils | Speedup |
