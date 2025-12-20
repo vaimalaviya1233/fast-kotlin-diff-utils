@@ -10,9 +10,11 @@ object TestConstants {
         Paths.get("kt-diff-jvm-io/build/resources/test"),
         Paths.get("build/resources/test"),
         Paths.get("target/test-classes"),
+        Paths.get("kt-diff-jvm-io/src/jvmTest/resources"),
+        Paths.get("src/jvmTest/resources"),
         Paths.get("kt-diff-jvm-io/src/test/resources"),
         Paths.get("src/test/resources")
-    ).firstOrNull { Files.exists(it) } ?: Paths.get("src/test/resources")
+    ).firstOrNull { Files.exists(it) } ?: Paths.get("src/jvmTest/resources")
 
     val BASE_FOLDER_RESOURCES: String = resourceDir.toString() + File.separator
     val MOCK_FOLDER: String = resourceDir.resolve("mocks").toString() + File.separator

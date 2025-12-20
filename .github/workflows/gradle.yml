@@ -2,24 +2,40 @@ name: Build with Gradle
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [master, main]
   pull_request:
-    branches: [ master, main ]
+    branches: [master, main]
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        java: [ 17, 21 ]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: ${{ matrix.java }}
-          cache: 'gradle'
+          distribution: "temurin"
+          java-version: "25"
+          cache: "gradle"
+          cache-dependency-path: |
+            **/*.gradle.kts
+            **/gradle.properties
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-      - name: Build and Test
-        run: ./gradlew --no-daemon clean test
+      - name: Build and Test (JVM)
+        run: ./gradlew --no-daemon clean jvmTest
+      - name: Check (JS)
+        run: ./gradlew --no-daemon :kt-diff-core:jsNodeTest
+
+  build-native:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "25"
+          cache: "gradle"
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+      - name: Build Native (macOS)
+        run: ./gradlew --no-daemon :kt-diff-core:macosArm64Test :kt-diff-core:macosX64Test

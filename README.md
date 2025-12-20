@@ -1,56 +1,59 @@
 <p align="center">
-  <img src=".github/header.png" alt="KT Diff Utils" width="100%">
+  <img src=".github/header.png" alt="Fast Kotlin Diff Utils" width="100%">
 </p>
+
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.bernaferrari/fast-kotlin-diff-core)](https://central.sonatype.com/artifact/io.github.bernaferrari/fast-kotlin-diff-core)
 
 # Fast Kotlin Diff Utils
 
-Fast, Kotlin-first diff utilities for Android and Kotlin Multiplatform. Drop-in replacement for java-diff-utils — same API, ~10× faster.
+A drop-in replacement for [java-diff-utils](https://github.com/java-diff-utils/java-diff-utils) that is **~10× faster**.
 
-```kotlin
-val patch = DiffUtils.diff(original, revised)
-val result = patch.applyTo(original)
-```
+Fast Kotlin Diff Utils started as the change engine for [ChangeDetection](https://github.com/bernaferrari/ChangeDetection) since [java-diff-utils](https://github.com/java-diff-utils/java-diff-utils) was causing UI freezes. By rewriting the core in Kotlin and applying profiling-driven optimizations (with help from _Claude Opus 4.5_, _GPT-5.2_, and _Gemini 3 Pro_), we achieved massive performance gains without changing the API.
+
+## Why switch?
+
+### 🚀 It's much faster
+
+On typical file diffs (2,000 lines, 10% edits), Fast Kotlin Diff Utils operates in **microseconds** where the original took milliseconds.
+
+| Scenario                     | java-diff-utils | Fast Kotlin Diff Utils | Speedup   |
+| :--------------------------- | :-------------- | :--------------------- | :-------- |
+| `DiffUtils.diff`             | 2.73 ms         | **0.17 ms**            | **~16×**  |
+| Custom Equalizer             | 2.83 ms         | **0.19 ms**            | **~15×**  |
+| `patch.deltas` access (500×) | 0.67 ms         | **0.001 ms**           | **~670×** |
+
+### ⚡️ Smart optimizations
+
+We don't just run the same algorithm in proper Kotlin; we improved it:
+
+- **Hash-based snake detection**: We verify hash equality before expensive `equals()` calls, skipping ~50% of comparisons.
+- **Stable edge trimming**: Real files often have unchanged headers/footers (imports, licenses). We detect and trim them _before_ running the O(ND) algorithm, delivering **4-18× speedups** for common cases.
+- **Patience-style anchors**: For large files, we use unique lines as anchors to split the problem into smaller, independent chunks.
+- **Primitive collections**: Our custom `IntIntMap` stores raw integers directly, avoiding the heavy memory overhead of allocating millions of `Integer` objects.
 
 ## Installation
 
-Include via composite build:
-
 ```kotlin
-// settings.gradle.kts
-includeBuild("../kt-diff-utils")
-```
-
-```kotlin
-// build.gradle.kts
 dependencies {
-    implementation(project(":kt-diff-core"))
-    
-    // Optional:
-    // implementation(project(":kt-diff-jvm-io"))  // Patch file (.patch) parsing
-    // implementation(project(":kt-diff-jgit"))    // Histogram diff via JGit
+    implementation("io.github.bernaferrari:fast-kotlin-diff-core:1.0.0")
+
+    // Optional extensions:
+    // implementation("io.github.bernaferrari:fast-kotlin-diff-jvm-io:1.0.0")  // Unified diff parsing/writing
+    // implementation("io.github.bernaferrari:fast-kotlin-diff-jgit:1.0.0")    // Histogram diff via JGit
 }
 ```
 
-For internal Maven artifacts: `./gradlew publishToMavenLocal` → `com.bernaferrari.difflib:kt-diff-*`
-
-## Modules
-
-| Module | Purpose |
-|--------|---------|
-| `kt-diff-core` | Myers diff, Histogram diff, patch apply/restore, diff-row generation. 100% Kotlin, multiplatform-ready. |
-| `kt-diff-jvm-io` | Unified diff parser/writer, Java serialization helpers. JVM only. |
-| `kt-diff-jgit` | Histogram diff adapter via Eclipse JGit. |
-
 ## Usage
 
-**Basic diff and patch:**
+The API is identical to java-diff-utils, so you can likely just change your imports.
+
+**Basic diff:**
 
 ```kotlin
-val original = listOf("A", "B", "C")
-val revised = listOf("A", "D", "C")
+import com.bernaferrari.difflib.DiffUtils
 
 val patch = DiffUtils.diff(original, revised)
-val result = patch.applyTo(original)  // ["A", "D", "C"]
+val result = patch.applyTo(original)
 ```
 
 **Side-by-side diff rows:**
@@ -64,100 +67,39 @@ val generator = DiffRowGenerator.create()
 val rows = generator.generateDiffRows(originalLines, revisedLines)
 ```
 
-**Custom equalizer:**
+**Complex comparison (Custom Equalizer):**
 
 ```kotlin
+// Compare objects by ID only, ignoring other fields
 val patch = DiffUtils.diff(
     users,
     updatedUsers,
-    MyersDiff { a, b -> a.id == b.id }  // Compare by ID only
+    MyersDiff { a, b -> a.id == b.id }
 )
 ```
 
-**Unified diff (requires `kt-diff-jvm-io`):**
+## Modules
 
-```kotlin
-val unifiedDiff = UnifiedDiffReader.parseUnifiedDiff(inputStream)
-val patch = unifiedDiff.spawnPatch()
-```
-
-## Performance
-
-~10× faster than java-diff-utils on typical workloads. The speedup comes from:
-
-- **Hash-based snake detection** — check hash equality before `equals()`, skipping ~50% of comparisons
-- **Primitive Collections (`IntIntMap`)** — custom open-addressing map avoids auto-boxing overhead in hot paths
-- **Prefix/suffix trimming** — skip unchanged headers and footers before diffing
-- **Patience-style anchors** — split large diffs at unique lines for segment processing (powered by `IntIntMap`)
-- **Global Hashing** — pre-compute hashes once for recursive algorithms (HistogramDiff)
-- **Cached delta ordering** — sort once, not on every access
-
-<details>
-<summary><strong>Benchmark results (JDK 22, 2,000 lines, 10% edits)</strong></summary>
-
-#### vs java-diff-utils
-
-| Scenario | java-diff-utils | Fast Kotlin Diff Utils | Speedup |
-|----------|-----------------|---------------|---------|
-| `DiffUtils.diff` | 2.73 ms | **0.17 ms** | ~16× |
-| With custom equalizer | 2.83 ms | **0.19 ms** | ~15× |
-| Patch application | 0.05 ms | **0.05 ms** | — |
-| `patch.deltas` access (500×) | 0.67 ms | **0.001 ms** | ~670× |
-
-#### Myers vs Histogram (2k lines)
-
-Both algorithms are highly optimized. Myers is slightly faster for general use, while Histogram acts as a fallback or alternative.
-
-| Algorithm | Latency |
-|-----------|---------|
-| Myers | **0.19 ms** |
-| Histogram | **0.21 ms** |
-
-#### vs kotlin-multiplatform-diff
-
-| Scenario | kotlin-multiplatform-diff | Fast Kotlin Diff Utils | Speedup |
-|----------|---------------------------|---------------|---------|
-| Diff (no stable edges) | 3.04 ms | **0.17 ms** | ~18× |
-| Diff (45% stable edges) | 0.70 ms | **0.04 ms** | ~18× |
-| `patch.deltas` access (500×) | 1.21 ms | **0.001 ms** | ~1200× |
-
-#### Stable edge optimization
-
-Real files often have unchanged imports, headers, and footers. Fast Kotlin Diff Utils trims these automatically:
-
-| Workload | No stable edges | 45% stable edges | Speedup |
-|----------|-----------------|------------------|---------|
-| `DiffUtils.diff` | 0.17 ms | **0.04 ms** | ~4× |
-
-Run benchmarks: `./gradlew :kt-diff-bench:jmh`
-
-</details>
-
-## Migrating from java-diff-utils
-
-Update your imports:
-
-```diff
-- import com.github.difflib.*
-+ import com.bernaferrari.difflib.*
-```
-
-The API surface is identical. Existing code should compile unchanged.
-
-
-## Related Projects
-
-- [java-diff-utils](https://github.com/java-diff-utils/java-diff-utils) — The original Java library
-- [kotlin-multiplatform-diff](https://github.com/petertrr/kotlin-multiplatform-diff) — KMP port, focuses on platform breadth
-- [GitLiveApp/kotlin-diff-utils](https://github.com/GitLiveApp/kotlin-diff-utils) — Another KMP port
+- **`fast-kotlin-diff-core`**: The main library. Myers diff, patch apply/restore, diff-row generation. 100% Kotlin, Multiplatform-ready.
+- **`fast-kotlin-diff-jvm-io`**: Unified diff parser/writer and Java serialization helpers. (JVM only).
+- **`fast-kotlin-diff-jgit`**: Histogram diff adapter via Eclipse JGit.
 
 ## Contributing
 
-```bash
-./gradlew test               # Build & test
-./gradlew :kt-diff-bench:jmh # Benchmarks  
-./gradlew spotlessCheck      # Formatting
-```
+We welcome contributions!
+
+- Run tests: `./gradlew test`
+- Run benchmarks: `./gradlew :fast-kotlin-diff-bench:jmh`
+- Format code: `./gradlew spotlessCheck`
+
+## Other Kotlin Ports
+
+There are other Kotlin ports of [java-diff-utils](https://github.com/java-diff-utils/java-diff-utils):
+
+- **[petertrr/kotlin-multiplatform-diff](https://github.com/petertrr/kotlin-multiplatform-diff)**
+- **[GitLiveApp/kotlin-diff-utils](https://github.com/GitLiveApp/kotlin-diff-utils)**
+
+These are straight ports—they convert the Java code to Kotlin but don't change the underlying algorithm. **Fast Kotlin Diff Utils** went further: we profiled real workloads, identified bottlenecks, and rewrote the core. The result is **~10× faster** performance on typical diffs. If you're migrating from one of these, just update your imports to `com.bernaferrari.difflib.*`.
 
 ## License
 

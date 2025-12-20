@@ -11,11 +11,8 @@ class Patch<T>(
 
     private val deltaList: MutableList<AbstractDelta<T>> = ArrayList(estimatedPatchSize)
     private var deltasSorted: Boolean = true
-    private val conflictProducesException: ConflictOutput<T> =
-        ConflictOutput { verifyChunk, _, _ ->
-            throw PatchFailedException("could not apply patch due to $verifyChunk")
-        }
-    private var conflictOutput: ConflictOutput<T> = conflictProducesException
+
+    private var conflictOutput: ConflictOutput<T>? = null
 
     @Throws(PatchFailedException::class)
     fun applyTo(target: List<T>): List<T> {
@@ -31,7 +28,7 @@ class Patch<T>(
             val delta = ordered[i]
             val verify = delta.verifyAndApplyTo(target)
             if (verify != VerifyChunk.OK) {
-                conflictOutput.processConflict(verify, delta, target)
+                (conflictOutput ?: throw PatchFailedException("could not apply patch due to $verify")).processConflict(verify, delta, target)
             }
         }
     }
@@ -49,7 +46,7 @@ class Patch<T>(
                 lastPatchDelta = patchPosition - delta.source.position
                 ctx.lastPatchEnd = delta.source.last() + lastPatchDelta
             } else {
-                conflictOutput.processConflict(VerifyChunk.CONTENT_DOES_NOT_MATCH_TARGET, delta, ctx.result)
+                (conflictOutput ?: throw PatchFailedException("could not apply patch due to ${VerifyChunk.CONTENT_DOES_NOT_MATCH_TARGET}")).processConflict(VerifyChunk.CONTENT_DOES_NOT_MATCH_TARGET, delta, ctx.result)
             }
         }
         return ctx.result

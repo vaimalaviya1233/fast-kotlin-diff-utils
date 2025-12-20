@@ -1,34 +1,22 @@
-import org.gradle.api.file.DuplicatesStrategy
-import org.gradle.api.tasks.compile.JavaCompile
-
 plugins {
     kotlin("jvm")
     id("me.champeau.jmh") version "0.7.3"
 }
 
-dependencies {
-    implementation(project(":kt-diff-core", configuration = "jvmRuntimeElements"))
+kotlin {
+    jvmToolchain(17)
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    kotlinOptions {
-        jvmTarget = "17"
-        freeCompilerArgs = freeCompilerArgs + "-Xjsr305=strict"
-    }
+dependencies {
+    implementation(project(":kt-diff-core"))
 }
 
 jmh {
     includes.set(listOf("DiffBenchmark"))
-    duplicateClassesStrategy.set(DuplicatesStrategy.WARN)
+    duplicateClassesStrategy.set(org.gradle.api.file.DuplicatesStrategy.WARN)
     warmupIterations.set(1)
     iterations.set(1)
     fork.set(1)
     warmup.set("1s")
     timeOnIteration.set("1s")
-}
-
-tasks.withType<JavaCompile>().configureEach {
-    if (name.contains("JmhCompileGeneratedClasses")) {
-        options.compilerArgs.add("-Xlint:-options")
-    }
 }

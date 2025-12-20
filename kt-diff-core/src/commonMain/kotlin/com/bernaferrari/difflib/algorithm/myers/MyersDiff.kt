@@ -245,7 +245,7 @@ class MyersDiff<T>(
         if (path?.isSnake() == true) {
             path = path.prev
         }
-        while (path != null && path.prev != null && path.prev!!.j >= 0) {
+        while (path != null && path.prev != null && path.prev.j >= 0) {
             if (path.isSnake()) {
                 throw IllegalStateException("bad diffpath: found snake when looking for diff")
             }
@@ -253,7 +253,7 @@ class MyersDiff<T>(
             val j = path.j
 
             path = path.prev
-            val iAnchor = path!!.i
+            val iAnchor = path.i
             val jAnchor = path.j
 
             val deltaType = when {
