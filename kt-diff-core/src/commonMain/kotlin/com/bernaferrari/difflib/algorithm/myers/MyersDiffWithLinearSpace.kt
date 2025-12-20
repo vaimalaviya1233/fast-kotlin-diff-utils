@@ -7,7 +7,7 @@ import com.bernaferrari.difflib.algorithm.DiffAlgorithmListener
 import com.bernaferrari.difflib.algorithm.Equalizer
 import com.bernaferrari.difflib.patch.DeltaType
 
-class MyersDiffWithLinearSpace<T> @JvmOverloads constructor(
+class MyersDiffWithLinearSpace<T>(
     private val equalizer: Equalizer<T> = { a, b -> a == b }
 ) : DiffAlgorithmI<T> {
 

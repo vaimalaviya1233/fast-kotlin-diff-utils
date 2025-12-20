@@ -8,11 +8,14 @@ import com.bernaferrari.difflib.algorithm.Equalizer
 import com.bernaferrari.difflib.algorithm.myers.MyersDiff
 import com.bernaferrari.difflib.patch.DeltaType
 
+import com.bernaferrari.difflib.algorithm.myers.IntIntMap
+
 class HistogramDiff<T>(
     private val equalizer: Equalizer<T> = defaultEqualizer()
 ) : DiffAlgorithmI<T> {
 
     private val myersAlgorithm by lazy { MyersDiff(equalizer) }
+    private val usesDefaultEqualizer = equalizer === DEFAULT_EQUALIZER
 
     override fun computeDiff(
         source: List<T>,
@@ -20,7 +23,10 @@ class HistogramDiff<T>(
         progress: DiffAlgorithmListener?
     ): List<Change> {
         val result = ArrayList<Change>()
-        computeRecursive(source, target, 0, 0, result, progress)
+        val sourceHashes = if (usesDefaultEqualizer) IntArray(source.size) { source[it].hashCode() } else null
+        val targetHashes = if (usesDefaultEqualizer) IntArray(target.size) { target[it].hashCode() } else null
+        
+        computeRecursive(source, target, 0, 0, result, progress, sourceHashes, targetHashes)
         return result
     }
 
@@ -30,7 +36,9 @@ class HistogramDiff<T>(
         startOrig: Int,
         startRev: Int,
         result: MutableList<Change>,
-        progress: DiffAlgorithmListener?
+        progress: DiffAlgorithmListener?,
+        sourceHashes: IntArray?,
+        targetHashes: IntArray?
     ) {
         val trimmed = trimEdges(source, target)
         val offsetOrig = startOrig + trimmed.offset
@@ -85,7 +93,11 @@ class HistogramDiff<T>(
         }
 
         // 3. Find unique common lines (Anchors)
-        val anchors = findAnchors(currSource, currTarget)
+        val anchors = if (sourceHashes != null && targetHashes != null) {
+            findAnchorsOptimized(currSource, currTarget, sourceHashes, targetHashes, offsetOrig, offsetRev)
+        } else {
+            findAnchors(currSource, currTarget)
+        }
 
         // 4. If no anchors, fallback to Myers
         if (anchors.isEmpty()) {
@@ -118,7 +130,9 @@ class HistogramDiff<T>(
                 offsetOrig + curSrcIdx,
                 offsetRev + curTgtIdx,
                 result,
-                progress
+                progress,
+                sourceHashes,
+                targetHashes
             )
 
             curSrcIdx = anchor.sourceIndex + 1
@@ -135,7 +149,9 @@ class HistogramDiff<T>(
                 offsetOrig + curSrcIdx,
                 offsetRev + curTgtIdx,
                 result,
-                progress
+                progress,
+                sourceHashes,
+                targetHashes
             )
         }
     }
@@ -160,6 +176,60 @@ class HistogramDiff<T>(
                 val sourceIndex = uniqueSourcePositions[item]
                 if (sourceIndex != null) {
                     candidates.add(Anchor(sourceIndex, index))
+                }
+            }
+        }
+
+        return longestIncreasingSubsequence(candidates)
+    }
+
+    private fun findAnchorsOptimized(
+        source: List<T>,
+        target: List<T>,
+        sourceHashes: IntArray,
+        targetHashes: IntArray,
+        sourceOffset: Int,
+        targetOffset: Int
+    ): List<Anchor> {
+        val n = source.size
+        val m = target.size
+        
+        // Use IntIntMap for counting
+        val sourceCounts = IntIntMap(minOf(n, 4096))
+        val targetCounts = IntIntMap(minOf(m, 4096))
+
+        // First pass: count hash occurrences in the relevant segments
+        for (i in 0 until n) {
+            val h = sourceHashes[sourceOffset + i]
+            sourceCounts.put(h, sourceCounts.get(h) + 1)
+        }
+        for (i in 0 until m) {
+            val h = targetHashes[targetOffset + i]
+            targetCounts.put(h, targetCounts.get(h) + 1)
+        }
+
+        // Second pass: identifying unique hashes in source
+        val uniqueSourcePositions = IntIntMap(minOf(n, 4096))
+        for (i in 0 until n) {
+            val h = sourceHashes[sourceOffset + i]
+            if (sourceCounts.get(h) == 1) {
+                uniqueSourcePositions.put(h, i)
+            }
+        }
+
+        // Third pass: iterate target, check if matches unique source
+        val candidates = mutableListOf<Anchor>()
+        for (j in 0 until m) {
+            val h = targetHashes[targetOffset + j]
+            if (sourceCounts.get(h) == 1 && targetCounts.get(h) == 1) {
+                val i = uniqueSourcePositions.get(h)
+                // If i was found (and map behaves correctly), check object equality
+                // IntIntMap returns 0 if missing. 0 is valid index. 
+                // But since count==1, it MUST be in uniqueSourcePositions.
+                // We trust the structure.
+                
+                if (source[i] == target[j]) {
+                    candidates.add(Anchor(i, j))
                 }
             }
         }

@@ -6,10 +6,6 @@ import com.bernaferrari.difflib.algorithm.DiffAlgorithmI
 import com.bernaferrari.difflib.algorithm.DiffAlgorithmListener
 import com.bernaferrari.difflib.algorithm.Equalizer
 import com.bernaferrari.difflib.patch.DeltaType
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.runBlocking
 import kotlin.collections.RandomAccess
 
 /**
@@ -18,17 +14,14 @@ import kotlin.collections.RandomAccess
  * Key optimizations:
  * - Hash-based preprocessing for fast equality filtering
  * - Primitive arrays instead of object arrays in hot loops
- * - Linear space divide-and-conquer for O(N) memory usage
- * - Aggressive parallelization with lower thresholds
- * - Improved anchor detection for better segment splitting
+ * - Shared-prefix/suffix trimming to skip unchanged content
+ * - Patience-style anchors using unique elements for segment processing
  */
-class MyersDiff<T> @JvmOverloads constructor(
-    private val equalizer: Equalizer<T> = defaultEqualizer(),
-    private val parallelConfig: ParallelConfig = ParallelConfig()
+class MyersDiff<T>(
+    private val equalizer: Equalizer<T> = defaultEqualizer()
 ) : DiffAlgorithmI<T> {
 
     private val usesDefaultEqualizer: Boolean = equalizer === DEFAULT_EQUALIZER
-    private val segmentParallelizer = AnchorParallelizer(parallelConfig)
 
     override fun computeDiff(
         source: List<T>,
@@ -340,19 +333,14 @@ class MyersDiff<T> @JvmOverloads constructor(
             return emptyList()
         }
 
-        val computed = segmentParallelizer.compute(segments) { segment ->
-            buildBasicDiff(
+        val result = mutableListOf<Change>()
+        for (segment in segments) {
+            val changes = buildBasicDiff(
                 source.subList(segment.sourceStart, segment.sourceEnd),
                 target.subList(segment.targetStart, segment.targetEnd),
                 null
             )
-        }
-
-        val result = mutableListOf<Change>()
-        for (index in segments.indices) {
-            val changes = computed[index]
             if (changes.isNotEmpty()) {
-                val segment = segments[index]
                 result.addAll(applyOffset(changes, segment.sourceStart, segment.targetStart))
             }
         }
@@ -371,19 +359,14 @@ class MyersDiff<T> @JvmOverloads constructor(
             return emptyList()
         }
 
-        val computed = segmentParallelizer.compute(segments) { segment ->
+        val result = mutableListOf<Change>()
+        for (segment in segments) {
             val srcSub = source.subList(segment.sourceStart, segment.sourceEnd)
             val tgtSub = target.subList(segment.targetStart, segment.targetEnd)
             val srcHashSub = sourceHashes.copyOfRange(segment.sourceStart, segment.sourceEnd)
             val tgtHashSub = targetHashes.copyOfRange(segment.targetStart, segment.targetEnd)
-            buildDiffWithHashes(srcSub, tgtSub, srcHashSub, tgtHashSub, null)
-        }
-
-        val result = mutableListOf<Change>()
-        for (index in segments.indices) {
-            val changes = computed[index]
+            val changes = buildDiffWithHashes(srcSub, tgtSub, srcHashSub, tgtHashSub, null)
             if (changes.isNotEmpty()) {
-                val segment = segments[index]
                 result.addAll(applyOffset(changes, segment.sourceStart, segment.targetStart))
             }
         }
@@ -431,7 +414,6 @@ class MyersDiff<T> @JvmOverloads constructor(
         val targetStart: Int,
         val targetEnd: Int
     ) {
-        val cost: Int = (sourceEnd - sourceStart) + (targetEnd - targetStart)
         val isEmpty: Boolean = sourceStart == sourceEnd && targetStart == targetEnd
     }
 
@@ -483,48 +465,57 @@ class MyersDiff<T> @JvmOverloads constructor(
         targetHashes: IntArray
     ): List<Anchor> {
         val minLength = minOf(source.size, target.size)
-        // Lower threshold for anchor detection - enables more parallelism
         if (minLength < 64) {
             return emptyList()
         }
 
         // Use hash-based counting for faster unique detection
-        val sourceHashCounts = HashMap<Int, Int>(minOf(source.size, 16384))
-        val targetHashCounts = HashMap<Int, Int>(minOf(target.size, 16384))
+        val sourceHashCounts = IntIntMap(minOf(source.size, 16384))
+        val targetHashCounts = IntIntMap(minOf(target.size, 16384))
 
         // Count hash occurrences
         for (hash in sourceHashes) {
-            sourceHashCounts[hash] = (sourceHashCounts[hash] ?: 0) + 1
+            sourceHashCounts.put(hash, sourceHashCounts.get(hash) + 1)
         }
         for (hash in targetHashes) {
-            targetHashCounts[hash] = (targetHashCounts[hash] ?: 0) + 1
+            targetHashCounts.put(hash, targetHashCounts.get(hash) + 1)
         }
 
         // Find potentially unique elements (unique hash in both)
-        val uniqueSourceByHash = HashMap<Int, MutableList<Int>>()
+        val uniqueSourceByHash = IntIntMap(minOf(source.size, 16384))
         for (i in sourceHashes.indices) {
             val hash = sourceHashes[i]
-            if (sourceHashCounts[hash] == 1) {
-                uniqueSourceByHash.getOrPut(hash) { mutableListOf() }.add(i)
+            if (sourceHashCounts.get(hash) == 1) {
+                uniqueSourceByHash.put(hash, i)
             }
         }
 
         val candidates = mutableListOf<Anchor>()
         for (targetIdx in targetHashes.indices) {
             val hash = targetHashes[targetIdx]
-            if (sourceHashCounts[hash] == 1 && targetHashCounts[hash] == 1) {
-                val sourcePositions = uniqueSourceByHash[hash]
-                if (sourcePositions != null && sourcePositions.size == 1) {
-                    val sourceIdx = sourcePositions[0]
-                    // Verify actual equality (not just hash equality)
-                    if (source[sourceIdx] == target[targetIdx]) {
-                        candidates.add(Anchor(sourceIdx, targetIdx))
-                    }
+            if (sourceHashCounts.get(hash) == 1 && targetHashCounts.get(hash) == 1) {
+                val sourceIdx = uniqueSourceByHash.get(hash)
+                // IntIntMap returns 0 if not found, but we know it's found because count==1.
+                // However, 0 is a valid index.
+                // But we constructed uniqueSourceByHash only for counts==1.
+                // So get(hash) should return the index.
+                // AND we need to be careful if index 0 is valid.
+                // Our IntIntMap returns 0 on missing.
+                // But since count==1, it MUST be present.
+                // UNLESS our IntIntMap implementation has a bug or hash collision issues.
+                
+                // Wait, if IntIntMap returns 0 for missing, and valid index is 0, how to distinguish?
+                // we checked sourceHashCounts.get(hash) == 1.
+                // So we inserted it. So it IS present.
+                // So the returned value is the index.
+                
+                // Verify actual equality (not just hash equality)
+                if (source[sourceIdx] == target[targetIdx]) {
+                    candidates.add(Anchor(sourceIdx, targetIdx))
                 }
             }
         }
 
-        // Lower threshold - allow smaller anchor sets
         if (candidates.size < 4) {
             return emptyList()
         }
@@ -599,68 +590,15 @@ class MyersDiff<T> @JvmOverloads constructor(
 
     private data class Anchor(val sourceIndex: Int, val targetIndex: Int)
 
-    data class ParallelConfig(
-        val enableParallelSegments: Boolean = true,
-        // Lowered from 10_000 - enables more parallel segments
-        val minSegmentCost: Int = 2_000,
-        // Lowered from 80_000 - enables parallelism for smaller inputs
-        val minTotalCost: Int = 8_000
-    )
-
-    private class AnchorParallelizer(
-        private val config: ParallelConfig
-    ) {
-        private val availableCores = Runtime.getRuntime().availableProcessors()
-
-        fun shouldParallel(segments: List<AnchorSegment>): Boolean {
-            if (!config.enableParallelSegments || segments.size < 2) {
-                return false
-            }
-            if (availableCores < 2) return false
-
-            val totalCost = segments.sumOf { it.cost }
-            if (totalCost < config.minTotalCost) {
-                return false
-            }
-
-            // Allow parallelization if at least some segments are large enough
-            // (changed from requiring ALL segments to be large)
-            val largeSegments = segments.count { it.cost >= config.minSegmentCost }
-            return largeSegments >= 2
-        }
-
-        fun <R> compute(segments: List<AnchorSegment>, block: (AnchorSegment) -> R): List<R> {
-            if (!shouldParallel(segments)) {
-                return computeSync(segments, block)
-            }
-            val parallelResult = computeParallel(segments, block)
-            return parallelResult ?: computeSync(segments, block)
-        }
-
-        private fun <R> computeSync(segments: List<AnchorSegment>, block: (AnchorSegment) -> R): List<R> =
-            segments.map(block)
-
-        private fun <R> computeParallel(
-            segments: List<AnchorSegment>,
-            block: (AnchorSegment) -> R
-        ): List<R>? = runCatching {
-            runBlocking(Dispatchers.Default) {
-                segments.map { segment ->
-                    async { block(segment) }
-                }.awaitAll()
-            }
-        }.getOrNull()
-    }
-
     companion object {
         private val DEFAULT_EQUALIZER: Equalizer<Any?> = { a, b -> a == b }
 
-        fun factory(parallelConfig: ParallelConfig = ParallelConfig()): DiffAlgorithmFactory =
+        fun factory(): DiffAlgorithmFactory =
             object : DiffAlgorithmFactory {
-                override fun <T> create(): DiffAlgorithmI<T> = MyersDiff(parallelConfig = parallelConfig)
+                override fun <T> create(): DiffAlgorithmI<T> = MyersDiff()
 
                 override fun <T> create(equalizer: Equalizer<T>): DiffAlgorithmI<T> =
-                    MyersDiff(equalizer, parallelConfig)
+                    MyersDiff(equalizer)
             }
 
         private fun <T> defaultEqualizer(): Equalizer<T> =

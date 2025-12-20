@@ -2,7 +2,7 @@ package com.bernaferrari.difflib.benchmark
 
 import com.bernaferrari.difflib.DiffUtils
 import com.bernaferrari.difflib.algorithm.histogram.HistogramDiff
-import com.bernaferrari.difflib.algorithm.myers.MyersDiff.ParallelConfig
+
 import com.bernaferrari.difflib.patch.Patch
 import java.util.concurrent.TimeUnit
 import kotlin.math.max
@@ -44,14 +44,13 @@ open class DiffBenchmark {
     @Param("off", "on")
     lateinit var parallelMode: String
 
-    @Param("copy", "zero")
-    lateinit var chunkCopyMode: String
+
 
     private lateinit var original: List<String>
     private lateinit var revised: List<String>
     private lateinit var preparedPatch: Patch<String>
-    private var runParallelSegments: Boolean = false
-    private var copyChunks: Boolean = true
+
+
 
     @Setup(Level.Trial)
     fun generateSamples() {
@@ -97,16 +96,9 @@ open class DiffBenchmark {
 
     @Setup(Level.Iteration)
     fun preparePatch() {
-        runParallelSegments = parallelMode == "on"
-        copyChunks = chunkCopyMode == "copy"
 
-        DiffUtils.withDefaultParallelConfig(
-            ParallelConfig(
-                enableParallelSegments = runParallelSegments,
-                minSegmentCost = 1,
-                minTotalCost = 1
-            )
-        )
+
+
         preparedPatch = computePatch(includeEquals = false)
     }
 
@@ -144,8 +136,7 @@ open class DiffBenchmark {
             revised,
             diffAlgo,
             null,
-            includeEquals,
-            copyChunks
+            includeEquals
         )
     }
 }

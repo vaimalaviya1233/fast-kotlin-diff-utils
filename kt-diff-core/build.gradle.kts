@@ -7,6 +7,7 @@ plugins {
 }
 
 kotlin {
+    // JVM
     jvm {
         compilations.all {
             kotlinOptions {
@@ -19,14 +20,47 @@ kotlin {
         }
     }
 
-    sourceSets {
-        val commonMain by getting {
-            dependencies {
-                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
+    // JavaScript
+    js {
+        browser {
+            testTask {
+                useKarma {
+                    useChromeHeadless()
+                }
             }
         }
-        val commonTest by getting
-        val jvmMain by getting
+        nodejs()
+    }
+
+    // Native - Apple
+    macosX64()
+    macosArm64()
+    iosX64()
+    iosArm64()
+    iosSimulatorArm64()
+    watchosArm32()
+    watchosArm64()
+    watchosSimulatorArm64()
+    watchosX64()
+    tvosArm64()
+    tvosSimulatorArm64()
+    tvosX64()
+
+    // Native - Linux
+    linuxX64()
+    linuxArm64()
+
+    // Native - Windows
+    mingwX64()
+
+    sourceSets {
+        val commonMain by getting
+        val commonTest by getting {
+            dependencies {
+                implementation(kotlin("test"))
+            }
+        }
+
         val jvmTest by getting {
             dependencies {
                 implementation(kotlin("test"))

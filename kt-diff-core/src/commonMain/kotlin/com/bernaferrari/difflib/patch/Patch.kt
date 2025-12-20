@@ -1,15 +1,15 @@
 package com.bernaferrari.difflib.patch
 
 import com.bernaferrari.difflib.algorithm.Change
-import com.bernaferrari.difflib.platform.PlatformSerializable
 
 /**
  * Describes the patch holding all deltas between the original and revised texts.
  */
-class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimatedPatchSize: Int = 10) :
-    PlatformSerializable {
+class Patch<T>(
+    estimatedPatchSize: Int = 10
+) {
 
-    private val deltaList: MutableList<AbstractDelta<T>> = mutableListOf()
+    private val deltaList: MutableList<AbstractDelta<T>> = ArrayList(estimatedPatchSize)
     private var deltasSorted: Boolean = true
     private val conflictProducesException: ConflictOutput<T> =
         ConflictOutput { verifyChunk, _, _ ->
@@ -176,7 +176,6 @@ class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimated
     }
 
     companion object {
-        @JvmStatic
         val CONFLICT_PRODUCES_MERGE_CONFLICT: ConflictOutput<String> = ConflictOutput { _, delta, result ->
             if (result.size > delta.source.position) {
                 val orgData = mutableListOf<String>()
@@ -194,31 +193,18 @@ class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimated
             }
         }
 
-        @JvmStatic
         fun <T> generate(original: List<T>, revised: List<T>, changes: List<Change>): Patch<T> =
             generate(original, revised, changes, includeEquals = false)
 
-        private fun <T> buildChunk(start: Int, end: Int, data: List<T>, copyChunks: Boolean): Chunk<T> =
-            Chunk(start, data.subList(start, end), null, copyChunks)
+        private fun <T> buildChunk(start: Int, end: Int, data: List<T>): Chunk<T> =
+            Chunk(start, data.subList(start, end))
 
-        @JvmStatic
         fun <T> generate(
             original: List<T>,
             revised: List<T>,
             changesInput: List<Change>,
             includeEquals: Boolean
-        ): Patch<T> = generate(original, revised, changesInput, includeEquals, copyChunks = true)
-
-        @JvmStatic
-        fun <T> generate(
-            original: List<T>,
-            revised: List<T>,
-            changesInput: List<Change>,
-            includeEquals: Boolean,
-            copyChunks: Boolean
         ): Patch<T> {
-            // copyChunks=false is an expert/benchmark-only path. We still clone mutable lists to
-            // avoid aliasing/corruption; zero-copy only happens if input lists are already immutable.
             val patch = Patch<T>(changesInput.size)
             var startOriginal = 0
             var startRevised = 0
@@ -234,14 +220,14 @@ class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimated
                 if (includeEquals && startOriginal < change.startOriginal) {
                     patch.addDelta(
                         EqualDelta(
-                            buildChunk(startOriginal, change.startOriginal, original, copyChunks),
-                            buildChunk(startRevised, change.startRevised, revised, copyChunks)
+                            buildChunk(startOriginal, change.startOriginal, original),
+                            buildChunk(startRevised, change.startRevised, revised)
                         )
                     )
                 }
 
-                val orgChunk = buildChunk(change.startOriginal, change.endOriginal, original, copyChunks)
-                val revChunk = buildChunk(change.startRevised, change.endRevised, revised, copyChunks)
+                val orgChunk = buildChunk(change.startOriginal, change.endOriginal, original)
+                val revChunk = buildChunk(change.startRevised, change.endRevised, revised)
                 when (change.deltaType) {
                     DeltaType.DELETE -> patch.addDelta(DeleteDelta(orgChunk, revChunk))
                     DeltaType.INSERT -> patch.addDelta(InsertDelta(orgChunk, revChunk))
@@ -260,8 +246,8 @@ class Patch<T> @JvmOverloads constructor(@Suppress("UNUSED_PARAMETER") estimated
             if (includeEquals && startOriginal < original.size) {
                 patch.addDelta(
                     EqualDelta(
-                        buildChunk(startOriginal, original.size, original, copyChunks),
-                        buildChunk(startRevised, revised.size, revised, copyChunks)
+                        buildChunk(startOriginal, original.size, original),
+                        buildChunk(startRevised, revised.size, revised)
                     )
                 )
             }

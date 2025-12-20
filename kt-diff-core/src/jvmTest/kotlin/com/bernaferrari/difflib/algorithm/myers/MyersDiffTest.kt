@@ -5,7 +5,6 @@ import com.bernaferrari.difflib.patch.Patch
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Test
-import com.bernaferrari.difflib.algorithm.myers.MyersDiff.ParallelConfig
 
 class MyersDiffTest {
 
@@ -59,7 +58,7 @@ class MyersDiffTest {
     }
 
     @Test
-    fun `anchor heavy workloads stay correct with parallel segments`() {
+    fun `anchor heavy workloads stay correct`() {
         val source = (0 until 800).map { "line-$it" }
         val revised = buildList {
             source.forEachIndexed { idx, value ->
@@ -73,12 +72,7 @@ class MyersDiffTest {
             }
         }
 
-        val parallelConfig = ParallelConfig(
-            enableParallelSegments = true,
-            minSegmentCost = 1,
-            minTotalCost = 1
-        )
-        val diff = MyersDiff<String>(parallelConfig = parallelConfig).computeDiff(source, revised, null)
+        val diff = MyersDiff<String>().computeDiff(source, revised, null)
         val patched = Patch.generate(source, revised, diff).applyTo(source)
         assertEquals(revised, patched)
     }

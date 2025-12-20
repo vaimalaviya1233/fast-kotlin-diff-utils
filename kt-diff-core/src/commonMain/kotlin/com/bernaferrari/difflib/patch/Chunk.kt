@@ -1,38 +1,26 @@
 package com.bernaferrari.difflib.patch
 
-import com.bernaferrari.difflib.platform.PlatformSerializable
-
 /**
  * Holds the information about the part of text involved in the diff process.
  */
 class Chunk<T>(
     val position: Int,
     lines: List<T>,
-    changePosition: List<Int>? = null,
-    private val copyLines: Boolean = true
-) : PlatformSerializable {
+    changePosition: List<Int>? = null
+) {
 
-    var lines: List<T> = prepareLines(lines)
+    var lines: List<T> = lines.toList()
         set(value) {
-            field = prepareLines(value)
+            field = value.toList()
         }
 
     val changePosition: List<Int>? = changePosition?.toList()
 
-    private fun prepareLines(value: List<T>): List<T> =
-        when {
-            copyLines -> value.toList()
-            // Avoid sharing mutable backing storage that could be mutated elsewhere.
-            value is MutableList<*> -> value.toList()
-            else -> value
-        }
-
     constructor(
         position: Int,
         lines: Array<T>,
-        changePosition: List<Int>? = null,
-        copyLines: Boolean = true
-    ) : this(position, lines.toList(), changePosition, copyLines)
+        changePosition: List<Int>? = null
+    ) : this(position, lines.toList(), changePosition)
 
     fun verifyChunk(target: List<T>): VerifyChunk = verifyChunk(target, 0, position)
 

@@ -366,13 +366,11 @@ class DiffRowGenerator private constructor(builder: Builder) {
         ) = apply { inlineDeltaMerger = merger }
 
         companion object {
-            @JvmStatic
             fun create(): Builder = Builder()
         }
     }
 
     companion object {
-        @JvmStatic
         fun create(): Builder = Builder.create()
         val DEFAULT_EQUALIZER: Equalizer<String> = { original, revised -> original == revised }
 

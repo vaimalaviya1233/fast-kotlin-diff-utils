@@ -1,7 +1,5 @@
 package com.bernaferrari.difflib.patch
 
-import com.bernaferrari.difflib.platform.PlatformSerializable
-
 /**
  * Abstract delta between a source and a target.
  */
@@ -9,7 +7,7 @@ abstract class AbstractDelta<T>(
     val type: DeltaType,
     val source: Chunk<T>,
     val target: Chunk<T>
-) : PlatformSerializable {
+) {
 
     protected open fun verifyChunkToFitTarget(target: List<T>): VerifyChunk = source.verifyChunk(target)
 
@@ -28,7 +26,7 @@ abstract class AbstractDelta<T>(
 
     @Throws(PatchFailedException::class)
     internal open fun applyFuzzyToAt(target: MutableList<T>, fuzz: Int, position: Int) {
-        throw UnsupportedOperationException("${javaClass.simpleName} does not supports applying patch fuzzy")
+        throw UnsupportedOperationException("${this::class.simpleName} does not support applying patch fuzzy")
     }
 
     abstract fun withChunks(original: Chunk<T>, revised: Chunk<T>): AbstractDelta<T>
@@ -39,7 +37,7 @@ abstract class AbstractDelta<T>(
         if (this === other) {
             return true
         }
-        if (other == null || javaClass != other.javaClass) {
+        if (other == null || this::class != other::class) {
             return false
         }
         val delta = other as AbstractDelta<*>

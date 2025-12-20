@@ -28,11 +28,11 @@ spotless {
 subprojects {
     pluginManager.withPlugin("java") {
         configure<JavaPluginExtension> {
-            sourceCompatibility = JavaVersion.VERSION_1_8
-            targetCompatibility = JavaVersion.VERSION_1_8
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
         }
         tasks.withType<JavaCompile>().configureEach {
-            options.release.set(8)
+            options.release.set(17)
         }
     }
 
@@ -40,7 +40,7 @@ subprojects {
         kotlinOptions {
             freeCompilerArgs = freeCompilerArgs + "-Xjsr305=strict"
         }
-        (kotlinOptions as? KotlinJvmOptions)?.jvmTarget = "1.8"
+        (kotlinOptions as? KotlinJvmOptions)?.jvmTarget = "17"
     }
 
     tasks.withType<Test>().configureEach {

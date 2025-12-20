@@ -5,7 +5,6 @@ import com.bernaferrari.difflib.algorithm.DiffAlgorithmI
 import com.bernaferrari.difflib.algorithm.DiffAlgorithmListener
 import com.bernaferrari.difflib.algorithm.Equalizer
 import com.bernaferrari.difflib.algorithm.myers.MyersDiff
-import com.bernaferrari.difflib.algorithm.myers.MyersDiff.ParallelConfig
 import com.bernaferrari.difflib.patch.AbstractDelta
 import com.bernaferrari.difflib.patch.Patch
 import com.bernaferrari.difflib.patch.PatchFailedException
@@ -14,39 +13,24 @@ import com.bernaferrari.difflib.patch.PatchFailedException
  * Utility entry points for computing diffs and applying patches.
  */
 object DiffUtils {
-    @JvmStatic
-    var DEFAULT_PARALLEL_CONFIG: ParallelConfig = ParallelConfig()
+    var DEFAULT_DIFF: DiffAlgorithmFactory = MyersDiff.factory()
 
-    @JvmStatic
-    var DEFAULT_DIFF: DiffAlgorithmFactory = defaultMyersFactory()
-
-    @JvmStatic
-    fun withDefaultParallelConfig(config: ParallelConfig) {
-        DEFAULT_PARALLEL_CONFIG = config
-    }
-
-    @JvmStatic
     fun withDefaultDiffAlgorithmFactory(factory: DiffAlgorithmFactory) {
         DEFAULT_DIFF = factory
     }
 
-    @JvmStatic
     fun <T> diff(original: List<T>, revised: List<T>, progress: DiffAlgorithmListener?): Patch<T> =
         diff(original, revised, DEFAULT_DIFF.create(), progress)
 
-    @JvmStatic
     fun <T> diff(original: List<T>, revised: List<T>): Patch<T> =
         diff(original, revised, DEFAULT_DIFF.create(), null)
 
-    @JvmStatic
     fun <T> diff(original: List<T>, revised: List<T>, includeEqualParts: Boolean): Patch<T> =
         diff(original, revised, DEFAULT_DIFF.create(), null, includeEqualParts)
 
-    @JvmStatic
     fun diff(sourceText: String, targetText: String, progress: DiffAlgorithmListener?): Patch<String> =
         diff(sourceText.split("\n"), targetText.split("\n"), progress)
 
-    @JvmStatic
     fun <T> diff(
         source: List<T>,
         target: List<T>,
@@ -58,7 +42,6 @@ object DiffUtils {
             diff(source, target, DEFAULT_DIFF.create())
         }
 
-    @JvmStatic
     fun <T> diff(
         original: List<T>,
         revised: List<T>,
@@ -66,48 +49,27 @@ object DiffUtils {
         progress: DiffAlgorithmListener?
     ): Patch<T> = diff(original, revised, algorithm, progress, includeEqualParts = false)
 
-    @JvmStatic
     fun <T> diff(
         original: List<T>,
         revised: List<T>,
         algorithm: DiffAlgorithmI<T>,
         progress: DiffAlgorithmListener?,
         includeEqualParts: Boolean
-    ): Patch<T> = diff(original, revised, algorithm, progress, includeEqualParts, copyChunks = true)
-
-    @JvmStatic
-    fun <T> diff(
-        original: List<T>,
-        revised: List<T>,
-        algorithm: DiffAlgorithmI<T>,
-        progress: DiffAlgorithmListener?,
-        includeEqualParts: Boolean,
-        copyChunks: Boolean
     ): Patch<T> =
         Patch.generate(
             original,
             revised,
             algorithm.computeDiff(original, revised, progress),
-            includeEqualParts,
-            copyChunks
+            includeEqualParts
         )
 
-    @JvmStatic
     fun <T> diff(
         original: List<T>,
         revised: List<T>,
         algorithm: DiffAlgorithmI<T>
     ): Patch<T> = diff(original, revised, algorithm, null)
 
-    @JvmStatic
-    fun <T> diff(
-        original: List<T>,
-        revised: List<T>,
-        includeEqualParts: Boolean,
-        copyChunks: Boolean
-    ): Patch<T> = diff(original, revised, DEFAULT_DIFF.create(), null, includeEqualParts, copyChunks)
 
-    @JvmStatic
     fun diffInline(original: String, revised: String): Patch<String> {
         val origList = original.map { it.toString() }
         val revList = revised.map { it.toString() }
@@ -119,11 +81,9 @@ object DiffUtils {
         return patch
     }
 
-    @JvmStatic
     @Throws(PatchFailedException::class)
     fun <T> patch(original: List<T>, patch: Patch<T>): List<T> = patch.applyTo(original)
 
-    @JvmStatic
     fun <T> unpatch(revised: List<T>, patch: Patch<T>): List<T> = patch.restore(revised)
 
     private fun compressLines(lines: List<String>, delimiter: String): List<String> =
@@ -132,11 +92,4 @@ object DiffUtils {
         } else {
             listOf(lines.joinToString(delimiter))
         }
-
-    private fun defaultMyersFactory(): DiffAlgorithmFactory = object : DiffAlgorithmFactory {
-        override fun <T> create(): DiffAlgorithmI<T> = MyersDiff(parallelConfig = DEFAULT_PARALLEL_CONFIG)
-
-        override fun <T> create(equalizer: Equalizer<T>): DiffAlgorithmI<T> =
-            MyersDiff(equalizer, DEFAULT_PARALLEL_CONFIG)
-    }
 }
