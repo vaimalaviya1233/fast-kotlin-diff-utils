@@ -73,6 +73,10 @@ class HistogramDiff<T>(
             return
         }
 
+        if (appendAlignedChanges(currSource, currTarget, offsetOrig, offsetRev, result, sourceHashes, targetHashes)) {
+            return
+        }
+
         // 2. Threshold optimization:
         // For small segments, the overhead of finding anchors (Map construction) dominates.
         // Fallback to Myers immediately.
@@ -154,6 +158,84 @@ class HistogramDiff<T>(
                 targetHashes
             )
         }
+    }
+
+    private fun appendAlignedChanges(
+        source: List<T>,
+        target: List<T>,
+        offsetOrig: Int,
+        offsetRev: Int,
+        result: MutableList<Change>,
+        sourceHashes: IntArray?,
+        targetHashes: IntArray?
+    ): Boolean {
+        val length = source.size
+        if (length != target.size || length < 8) return false
+
+        var matches = 0
+        if (sourceHashes != null && targetHashes != null) {
+            for (i in 0 until length) {
+                if (sourceHashes[offsetOrig + i] == targetHashes[offsetRev + i] && source[i] == target[i]) {
+                    matches++
+                }
+            }
+        } else {
+            for (i in 0 until length) {
+                if (equalizer(source[i], target[i])) {
+                    matches++
+                }
+            }
+        }
+
+        if (matches == 0) {
+            if (sourceHashes != null && targetHashes != null && !hasSharedHash(sourceHashes, targetHashes, offsetOrig, offsetRev, length)) {
+                result.add(Change(DeltaType.CHANGE, offsetOrig, offsetOrig + length, offsetRev, offsetRev + length))
+                return true
+            }
+            return false
+        }
+        if (matches * 4 < length) return false
+
+        var runStart = -1
+        for (i in 0 until length) {
+            val equal = if (sourceHashes != null && targetHashes != null) {
+                sourceHashes[offsetOrig + i] == targetHashes[offsetRev + i] && source[i] == target[i]
+            } else {
+                equalizer(source[i], target[i])
+            }
+
+            if (equal) {
+                if (runStart != -1) {
+                    result.add(Change(DeltaType.CHANGE, offsetOrig + runStart, offsetOrig + i, offsetRev + runStart, offsetRev + i))
+                    runStart = -1
+                }
+            } else if (runStart == -1) {
+                runStart = i
+            }
+        }
+        if (runStart != -1) {
+            result.add(Change(DeltaType.CHANGE, offsetOrig + runStart, offsetOrig + length, offsetRev + runStart, offsetRev + length))
+        }
+        return true
+    }
+
+    private fun hasSharedHash(
+        sourceHashes: IntArray,
+        targetHashes: IntArray,
+        offsetOrig: Int,
+        offsetRev: Int,
+        length: Int
+    ): Boolean {
+        val hashes = IntIntMap(length)
+        for (i in 0 until length) {
+            hashes.put(sourceHashes[offsetOrig + i], 1)
+        }
+        for (i in 0 until length) {
+            if (hashes.get(targetHashes[offsetRev + i]) != 0) {
+                return true
+            }
+        }
+        return false
     }
 
     private fun findAnchors(source: List<T>, target: List<T>): List<Anchor> {

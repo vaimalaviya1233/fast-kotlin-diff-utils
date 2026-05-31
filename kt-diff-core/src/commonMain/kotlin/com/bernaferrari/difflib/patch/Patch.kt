@@ -144,8 +144,10 @@ class Patch<T>(
     }
 
     fun addDelta(delta: AbstractDelta<T>) {
+        if (deltasSorted && deltaList.isNotEmpty() && deltaList.last().source.position > delta.source.position) {
+            deltasSorted = false
+        }
         deltaList.add(delta)
-        deltasSorted = false
     }
 
     val deltas: List<AbstractDelta<T>>

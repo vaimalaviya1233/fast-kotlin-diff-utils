@@ -8,18 +8,12 @@ class InsertDelta<T>(sourceChunk: Chunk<T>, targetChunk: Chunk<T>) :
 
     @Throws(PatchFailedException::class)
     override fun applyTo(target: MutableList<T>) {
-        val position = source.position
-        val lines = this.target.lines
-        for (i in lines.indices) {
-            target.add(position + i, lines[i])
-        }
+        target.addAll(source.position, this.target.lines)
     }
 
     override fun restore(target: MutableList<T>) {
         val position = this.target.position
-        repeat(this.target.size()) {
-            target.removeAt(position)
-        }
+        target.subList(position, position + this.target.size()).clear()
     }
 
     override fun toString(): String =

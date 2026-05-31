@@ -152,6 +152,28 @@ class DiffUtilsTest {
     }
 
     @Test
+    fun `diff aligned replacements apply cleanly`() {
+        val original = List(100) { index -> "line_$index" }
+        val revised = List(100) { index ->
+            if (index % 10 == 0) "line_${index}_changed" else "line_$index"
+        }
+
+        val patch = DiffUtils.diff(original, revised)
+
+        assertEquals(revised, patch.applyTo(original))
+    }
+
+    @Test
+    fun `diff full aligned replacement applies cleanly`() {
+        val original = List(100) { index -> index }
+        val revised = List(100) { index -> index + 1000 }
+
+        val patch = DiffUtils.diff(original, revised)
+
+        assertEquals(revised, patch.applyTo(original))
+    }
+
+    @Test
     fun `diff equal`() {
         val patch = DiffUtils.diff(listOf("hhh", "jjj", "kkk"), listOf("hhh", "jjj", "kkk"), true)
         assertNotNull(patch)

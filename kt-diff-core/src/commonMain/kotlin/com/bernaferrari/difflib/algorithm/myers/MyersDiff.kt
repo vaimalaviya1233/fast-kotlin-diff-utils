@@ -39,6 +39,12 @@ class MyersDiff<T>(
             return rel
         }
 
+        val alignedChanges = buildAlignedChanges(trimmed.source, trimmed.target)
+        if (alignedChanges != null) {
+            progress?.diffEnd()
+            return applyOffset(alignedChanges, trimmed.offset, trimmed.offset)
+        }
+
         // Use hash-based preprocessing for default equalizer
         val result = if (usesDefaultEqualizer && trimmed.source.size + trimmed.target.size >= 64) {
             computeWithHashOptimization(trimmed.source, trimmed.target, progress)
@@ -84,6 +90,57 @@ class MyersDiff<T>(
         } else {
             buildDiffWithAnchors(source, target, anchors)
         }
+    }
+
+    private fun buildAlignedChanges(source: List<T>, target: List<T>): List<Change>? {
+        val length = source.size
+        if (length != target.size || length < 8) return null
+
+        var matches = 0
+        for (i in 0 until length) {
+            if (equalizer(source[i], target[i])) {
+                matches++
+            }
+        }
+
+        if (matches == 0) {
+            return if (usesDefaultEqualizer && !hasSharedHash(source, target)) {
+                listOf(Change(DeltaType.CHANGE, 0, length, 0, length))
+            } else {
+                null
+            }
+        }
+        if (matches * 4 < length) return null
+
+        val changes = ArrayList<Change>()
+        var runStart = -1
+        for (i in 0 until length) {
+            if (equalizer(source[i], target[i])) {
+                if (runStart != -1) {
+                    changes.add(Change(DeltaType.CHANGE, runStart, i, runStart, i))
+                    runStart = -1
+                }
+            } else if (runStart == -1) {
+                runStart = i
+            }
+        }
+        if (runStart != -1) {
+            changes.add(Change(DeltaType.CHANGE, runStart, length, runStart, length))
+        }
+        return changes
+    }
+
+    private fun hasSharedHash(source: List<T>, target: List<T>): Boolean {
+        val sourceHashes = HashSet<Int>(source.size)
+        for (item in source) {
+            sourceHashes.add(item.hashCode())
+        }
+        for (item in target) {
+            if (sourceHashes.contains(item.hashCode())) {
+                return true
+            }
+        }
+        return false
     }
 
     /**

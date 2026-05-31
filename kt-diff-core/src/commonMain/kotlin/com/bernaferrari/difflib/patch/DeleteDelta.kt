@@ -9,17 +9,11 @@ class DeleteDelta<T>(original: Chunk<T>, revised: Chunk<T>) :
     @Throws(PatchFailedException::class)
     override fun applyTo(target: MutableList<T>) {
         val position = source.position
-        repeat(source.size()) {
-            target.removeAt(position)
-        }
+        target.subList(position, position + source.size()).clear()
     }
 
     override fun restore(target: MutableList<T>) {
-        val position = this.target.position
-        val lines = source.lines
-        for (i in lines.indices) {
-            target.add(position + i, lines[i])
-        }
+        target.addAll(this.target.position, source.lines)
     }
 
     override fun toString(): String =
